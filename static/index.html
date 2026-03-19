@@ -1,0 +1,1566 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SYS//MONITOR — NEURAL GRID</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600;700&display=swap"
+        rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --c-bg: #010a0e;
+            --c-panel: rgba(0, 255, 180, 0.04);
+            --c-border: rgba(0, 255, 160, 0.25);
+            --c-glow: #00ffaa;
+            --c-glow2: #00c8ff;
+            --c-red: #ff3366;
+            --c-yellow: #ffe000;
+            --c-text: #c0ffe8;
+            --c-dim: #3a6657;
+            --c-grid: rgba(0, 255, 140, 0.07);
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html,
+        body {
+            background: var(--c-bg);
+            color: var(--c-text);
+            font-family: 'Share Tech Mono', monospace;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ── MATRIX RAIN CANVAS ── */
+        #matrix-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            opacity: 0.18;
+            pointer-events: none;
+        }
+
+        /* ── SCAN-LINE OVERLAY ── */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: repeating-linear-gradient(0deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(0, 0, 0, 0.08) 2px,
+                    rgba(0, 0, 0, 0.08) 4px);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* ── VIGNETTE ── */
+        body::after {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.7) 100%);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* ── MAIN LAYOUT ── */
+        #app {
+            position: relative;
+            z-index: 2;
+            padding: 0 24px 40px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        /* ── HEADER ── */
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 18px 0 12px;
+            border-bottom: 1px solid var(--c-border);
+            margin-bottom: 28px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .logo-icon {
+            width: 42px;
+            height: 42px;
+            border: 2px solid var(--c-glow);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 18px var(--c-glow), inset 0 0 12px rgba(0, 255, 170, 0.15);
+            animation: pulse-border 2.5s ease-in-out infinite;
+        }
+
+        .logo-icon svg {
+            width: 24px;
+            height: 24px;
+            fill: var(--c-glow);
+        }
+
+        @keyframes pulse-border {
+
+            0%,
+            100% {
+                box-shadow: 0 0 18px var(--c-glow), inset 0 0 12px rgba(0, 255, 170, 0.15);
+            }
+
+            50% {
+                box-shadow: 0 0 30px var(--c-glow), 0 0 60px rgba(0, 255, 170, 0.3), inset 0 0 20px rgba(0, 255, 170, 0.25);
+            }
+        }
+
+        .logo-text h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 900;
+            letter-spacing: 4px;
+            color: var(--c-glow);
+            text-shadow: 0 0 12px var(--c-glow);
+            line-height: 1;
+        }
+
+        .logo-text span {
+            font-size: 0.65rem;
+            letter-spacing: 3px;
+            color: var(--c-dim);
+            text-transform: uppercase;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.72rem;
+            letter-spacing: 2px;
+            color: var(--c-glow);
+        }
+
+        .dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: var(--c-glow);
+            box-shadow: 0 0 10px var(--c-glow);
+            animation: blink 1s step-start infinite;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.1;
+            }
+        }
+
+        #clock {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.85rem;
+            color: var(--c-glow2);
+            text-shadow: 0 0 8px var(--c-glow2);
+            letter-spacing: 2px;
+        }
+
+        #hostname-display {
+            font-size: 0.7rem;
+            letter-spacing: 2px;
+            color: var(--c-dim);
+        }
+
+        /* ── TICKER ── */
+        .ticker-bar {
+            background: rgba(0, 255, 160, 0.05);
+            border-top: 1px solid var(--c-border);
+            border-bottom: 1px solid var(--c-border);
+            overflow: hidden;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            margin-bottom: 28px;
+            position: relative;
+        }
+
+        .ticker-label {
+            background: var(--c-glow);
+            color: #010a0e;
+            font-size: 0.65rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            padding: 0 12px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            flex-shrink: 0;
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        .ticker-inner {
+            display: flex;
+            white-space: nowrap;
+            animation: ticker-scroll 30s linear infinite;
+            gap: 60px;
+            font-size: 0.68rem;
+            letter-spacing: 1.5px;
+            color: var(--c-dim);
+            padding-left: 20px;
+        }
+
+        .ticker-inner span {
+            color: var(--c-glow);
+        }
+
+        @keyframes ticker-scroll {
+            0% {
+                transform: translateX(0);
+            }
+
+            100% {
+                transform: translateX(-50%);
+            }
+        }
+
+        /* ── GRID LAYOUT ── */
+        .grid-main {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .grid-mid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .grid-bottom {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 16px;
+        }
+
+        /* ── PANEL ── */
+        .panel {
+            background: var(--c-panel);
+            border: 1px solid var(--c-border);
+            border-radius: 4px;
+            padding: 18px 20px;
+            position: relative;
+            overflow: hidden;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        .panel:hover {
+            border-color: var(--c-glow);
+            box-shadow: 0 0 24px rgba(0, 255, 170, 0.18), inset 0 0 20px rgba(0, 255, 170, 0.04);
+        }
+
+        /* animated corner brackets */
+        .panel::before,
+        .panel::after {
+            content: '';
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            border-color: var(--c-glow);
+            border-style: solid;
+        }
+
+        .panel::before {
+            top: 0;
+            left: 0;
+            border-width: 2px 0 0 2px;
+        }
+
+        .panel::after {
+            bottom: 0;
+            right: 0;
+            border-width: 0 2px 2px 0;
+        }
+
+        .panel-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.62rem;
+            letter-spacing: 3px;
+            color: var(--c-dim);
+            text-transform: uppercase;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-title::before {
+            content: '//';
+            color: var(--c-glow);
+        }
+
+        /* ── STAT CARD ── */
+        .stat-value {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.2rem;
+            font-weight: 900;
+            line-height: 1;
+            color: var(--c-glow);
+            text-shadow: 0 0 20px var(--c-glow);
+            margin-bottom: 4px;
+        }
+
+        .stat-unit {
+            font-size: 0.75rem;
+            color: var(--c-dim);
+            letter-spacing: 2px;
+        }
+
+        .stat-label {
+            font-size: 0.65rem;
+            letter-spacing: 2px;
+            color: var(--c-dim);
+            margin-top: 8px;
+            text-transform: uppercase;
+        }
+
+        /* ── RADIAL GAUGE ── */
+        .gauge-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .gauge-svg {
+            overflow: visible;
+        }
+
+        .gauge-track {
+            stroke: rgba(0, 255, 160, 0.1);
+            fill: none;
+        }
+
+        .gauge-fill {
+            fill: none;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 0.8s cubic-bezier(.4, 0, .2, 1);
+            filter: drop-shadow(0 0 6px currentColor);
+        }
+
+        .gauge-text {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            fill: var(--c-glow);
+            text-anchor: middle;
+            dominant-baseline: middle;
+        }
+
+        .gauge-sublabel {
+            font-size: 0.5rem;
+            fill: var(--c-dim);
+            text-anchor: middle;
+            letter-spacing: 2px;
+        }
+
+        /* ── BAR PROGRESS ── */
+        .bar-wrap {
+            margin-top: 10px;
+        }
+
+        .bar-label-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.65rem;
+            color: var(--c-dim);
+            letter-spacing: 1.5px;
+            margin-bottom: 6px;
+        }
+
+        .bar-track {
+            height: 6px;
+            background: rgba(0, 255, 160, 0.08);
+            border-radius: 3px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.9s cubic-bezier(.4, 0, .2, 1);
+            position: relative;
+        }
+
+        .bar-fill::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 20px;
+            background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.6));
+            animation: shimmer 1.5s linear infinite;
+        }
+
+        @keyframes shimmer {
+            0% {
+                opacity: 0;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0;
+            }
+        }
+
+        .bar-fill.green {
+            background: linear-gradient(to right, #00aa66, #00ffaa);
+        }
+
+        .bar-fill.yellow {
+            background: linear-gradient(to right, #cc8800, #ffe000);
+        }
+
+        .bar-fill.red {
+            background: linear-gradient(to right, #aa0033, #ff3366);
+        }
+
+        /* ── CHARTS ── */
+        .chart-wrap {
+            position: relative;
+            height: 160px;
+        }
+
+        /* ── NETWORK STATS ── */
+        .net-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(0, 255, 160, 0.07);
+        }
+
+        .net-row:last-child {
+            border-bottom: none;
+        }
+
+        .net-key {
+            font-size: 0.65rem;
+            letter-spacing: 2px;
+            color: var(--c-dim);
+            text-transform: uppercase;
+        }
+
+        .net-val {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.85rem;
+            color: var(--c-glow2);
+            text-shadow: 0 0 8px var(--c-glow2);
+        }
+
+        /* ── HEXAGON GRID DECORATION ── */
+        .hex-grid {
+            position: absolute;
+            right: 12px;
+            bottom: 10px;
+            opacity: 0.06;
+            pointer-events: none;
+        }
+
+        /* ── PROCESS TABLE ── */
+        .proc-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.7rem;
+        }
+
+        .proc-table th {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.58rem;
+            letter-spacing: 2px;
+            color: var(--c-dim);
+            text-align: left;
+            padding: 6px 10px;
+            border-bottom: 1px solid var(--c-border);
+            text-transform: uppercase;
+            background: rgba(0, 255, 160, 0.03);
+        }
+
+        .proc-table td {
+            padding: 6px 10px;
+            border-bottom: 1px solid rgba(0, 255, 160, 0.05);
+            color: var(--c-text);
+            font-size: 0.68rem;
+            letter-spacing: 0.5px;
+            transition: background 0.2s;
+        }
+
+        .proc-table tr:hover td {
+            background: rgba(0, 255, 160, 0.06);
+        }
+
+        .proc-table tbody tr:nth-child(even) td {
+            background: rgba(0, 255, 160, 0.02);
+        }
+
+        .proc-table tbody tr:nth-child(even):hover td {
+            background: rgba(0, 255, 160, 0.07);
+        }
+
+        .pid-cell {
+            font-family: 'Orbitron', sans-serif;
+            color: var(--c-dim);
+            font-size: 0.62rem;
+        }
+
+        .cpu-bar-mini {
+            height: 4px;
+            background: rgba(0, 255, 160, 0.1);
+            border-radius: 2px;
+            margin-top: 4px;
+        }
+
+        .cpu-bar-mini-fill {
+            height: 100%;
+            border-radius: 2px;
+            background: linear-gradient(to right, #00aa66, #00ffaa);
+            transition: width 0.5s ease;
+        }
+
+        .status-pill {
+            display: inline-block;
+            padding: 1px 8px;
+            border-radius: 10px;
+            font-size: 0.58rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .status-pill.running {
+            background: rgba(0, 255, 140, 0.15);
+            color: var(--c-glow);
+            border: 1px solid rgba(0, 255, 140, 0.3);
+        }
+
+        .status-pill.sleeping {
+            background: rgba(0, 200, 255, 0.1);
+            color: var(--c-glow2);
+            border: 1px solid rgba(0, 200, 255, 0.2);
+        }
+
+        .status-pill.other {
+            background: rgba(255, 200, 0, 0.1);
+            color: var(--c-yellow);
+            border: 1px solid rgba(255, 200, 0, 0.25);
+        }
+
+        .proc-scroll {
+            max-height: 340px;
+            overflow-y: auto;
+        }
+
+        .proc-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .proc-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .proc-scroll::-webkit-scrollbar-thumb {
+            background: var(--c-border);
+            border-radius: 2px;
+        }
+
+        /* ── UPTIME BOX ── */
+        .uptime-segments {
+            display: flex;
+            gap: 10px;
+            margin-top: 14px;
+            flex-wrap: wrap;
+        }
+
+        .uptime-seg {
+            text-align: center;
+            flex: 1;
+        }
+
+        .uptime-num {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: var(--c-glow);
+            text-shadow: 0 0 12px var(--c-glow);
+            line-height: 1;
+        }
+
+        .uptime-lbl {
+            font-size: 0.55rem;
+            letter-spacing: 2px;
+            color: var(--c-dim);
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+
+        .uptime-div {
+            display: flex;
+            align-items: center;
+            color: var(--c-glow);
+            font-size: 1.2rem;
+            padding-top: 8px;
+            opacity: 0.4;
+        }
+
+        /* ── WARNING BADGE ── */
+        .warn {
+            color: var(--c-red) !important;
+            text-shadow: 0 0 10px var(--c-red) !important;
+        }
+
+        .alert-banner {
+            display: none;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255, 51, 102, 0.08);
+            border: 1px solid rgba(255, 51, 102, 0.4);
+            padding: 8px 14px;
+            border-radius: 4px;
+            font-size: 0.68rem;
+            letter-spacing: 2px;
+            color: var(--c-red);
+            margin-bottom: 16px;
+            animation: alert-flash 1s ease-in-out infinite;
+        }
+
+        .alert-banner.show {
+            display: flex;
+        }
+
+        @keyframes alert-flash {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        /* ── LOADING OVERLAY ── */
+        #loader {
+            position: fixed;
+            inset: 0;
+            background: var(--c-bg);
+            z-index: 999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+        }
+
+        .loader-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 900;
+            letter-spacing: 6px;
+            color: var(--c-glow);
+            text-shadow: 0 0 30px var(--c-glow);
+            animation: glitch 2s infinite;
+        }
+
+        @keyframes glitch {
+
+            0%,
+            90%,
+            100% {
+                text-shadow: 0 0 30px var(--c-glow);
+                transform: none;
+            }
+
+            92% {
+                text-shadow: -3px 0 var(--c-red), 3px 0 var(--c-glow2);
+                transform: skewX(-2deg);
+            }
+
+            94% {
+                text-shadow: 3px 0 var(--c-red), -3px 0 var(--c-glow2);
+                transform: skewX(2deg);
+            }
+
+            96% {
+                text-shadow: 0 0 30px var(--c-glow);
+                transform: none;
+            }
+        }
+
+        .loader-bar-wrap {
+            width: 300px;
+            height: 3px;
+            background: rgba(0, 255, 160, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .loader-bar {
+            height: 100%;
+            width: 0%;
+            background: var(--c-glow);
+            box-shadow: 0 0 12px var(--c-glow);
+            animation: load-fill 2s ease forwards;
+        }
+
+        @keyframes load-fill {
+            0% {
+                width: 0%;
+            }
+
+            40% {
+                width: 55%;
+            }
+
+            80% {
+                width: 85%;
+            }
+
+            100% {
+                width: 100%;
+            }
+        }
+
+        .loader-log {
+            font-size: 0.65rem;
+            letter-spacing: 2px;
+            color: var(--c-dim);
+            text-align: center;
+        }
+
+        #loader-msg {
+            color: var(--c-glow);
+        }
+
+        /* ── GLITCH OVERLAY (sometimes) ── */
+        .glitch-line {
+            position: fixed;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--c-glow);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        /* ── RESPONSIVE ── */
+        @media (max-width: 1100px) {
+            .grid-main {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .grid-mid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .grid-bottom {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .grid-main {
+                grid-template-columns: 1fr;
+            }
+
+            .grid-mid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* ── REFRESH BTN ── */
+        .refresh-btn {
+            background: transparent;
+            border: 1px solid var(--c-border);
+            color: var(--c-glow);
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.65rem;
+            letter-spacing: 2px;
+            padding: 6px 14px;
+            cursor: pointer;
+            border-radius: 3px;
+            text-transform: uppercase;
+            transition: all 0.2s;
+        }
+
+        .refresh-btn:hover {
+            background: rgba(0, 255, 160, 0.1);
+            border-color: var(--c-glow);
+            box-shadow: 0 0 12px rgba(0, 255, 160, 0.3);
+        }
+
+        .refresh-btn:active {
+            transform: scale(0.97);
+        }
+
+        /* ── PING ── */
+        .ping-ring {
+            display: inline-block;
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: var(--c-glow);
+            position: relative;
+        }
+
+        .ping-ring::after {
+            content: '';
+            position: absolute;
+            inset: -4px;
+            border-radius: 50%;
+            border: 2px solid var(--c-glow);
+            animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+            opacity: 0;
+        }
+
+        @keyframes ping {
+            0% {
+                transform: scale(0.9);
+                opacity: 1;
+            }
+
+            100% {
+                transform: scale(2.2);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- MATRIX RAIN -->
+    <canvas id="matrix-canvas"></canvas>
+
+    <!-- LOADING SCREEN -->
+    <div id="loader">
+        <div class="loader-title">SYS//MONITOR</div>
+        <div style="font-size:0.65rem;letter-spacing:4px;color:var(--c-dim);margin-top:-16px;">NEURAL GRID v3.1.4</div>
+        <div class="loader-bar-wrap">
+            <div class="loader-bar"></div>
+        </div>
+        <div class="loader-log">
+            <div>INITIALIZING SYSTEM DIAGNOSTICS...</div>
+            <div id="loader-msg" style="margin-top:6px;">LOADING KERNEL MODULES</div>
+        </div>
+    </div>
+
+    <!-- MAIN APP -->
+    <div id="app" style="opacity:0;transition:opacity 0.8s;">
+
+        <!-- HEADER -->
+        <header>
+            <div class="logo">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                    </svg>
+                </div>
+                <div class="logo-text">
+                    <h1>SYS//MONITOR</h1>
+                    <span id="os-label">NEURAL GRID — LOADING…</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <div id="hostname-display">HOST: —</div>
+                <div class="status-badge">
+                    <div class="ping-ring"></div> LIVE
+                </div>
+                <div id="clock">00:00:00</div>
+                <button class="refresh-btn" onclick="fetchAll()">↺ REFRESH</button>
+            </div>
+        </header>
+
+        <!-- ALERT BANNER -->
+        <div class="alert-banner" id="alert-banner">
+            ⚠ CRITICAL RESOURCE THRESHOLD EXCEEDED — SYSTEM UNDER STRAIN
+        </div>
+
+        <!-- TICKER -->
+        <div class="ticker-bar">
+            <div class="ticker-label">// FEED</div>
+            <div class="ticker-inner" id="ticker-inner">
+                <span>CPU:</span> — &nbsp;&nbsp;
+                <span>MEM:</span> — &nbsp;&nbsp;
+                <span>DISK:</span> — &nbsp;&nbsp;
+                <span>NET↑:</span> — &nbsp;&nbsp;
+                <span>NET↓:</span> — &nbsp;&nbsp;
+                <span>CPU:</span> — &nbsp;&nbsp;
+                <span>MEM:</span> — &nbsp;&nbsp;
+                <span>DISK:</span> — &nbsp;&nbsp;
+                <span>NET↑:</span> — &nbsp;&nbsp;
+                <span>NET↓:</span> —
+            </div>
+        </div>
+
+        <!-- ROW 1: 4 stat cards -->
+        <div class="grid-main">
+            <!-- CPU -->
+            <div class="panel">
+                <div class="panel-title">CPU LOAD</div>
+                <div class="gauge-wrap">
+                    <svg class="gauge-svg" width="120" height="120" viewBox="0 0 120 120">
+                        <circle class="gauge-track" cx="60" cy="60" r="50" stroke-width="8" />
+                        <circle id="cpu-arc" class="gauge-fill" cx="60" cy="60" r="50" stroke="#00ffaa" stroke-width="8"
+                            stroke-dasharray="314" stroke-dashoffset="314" transform="rotate(-90 60 60)" />
+                        <text class="gauge-text" x="60" y="57" id="cpu-pct">0%</text>
+                        <text class="gauge-sublabel" x="60" y="72">CPU USAGE</text>
+                    </svg>
+                </div>
+                <div class="stat-label">CORES: <span id="cpu-cores">—</span> &nbsp;|&nbsp; FREQ: <span
+                        id="cpu-freq">—</span> MHz</div>
+            </div>
+
+            <!-- MEMORY -->
+            <div class="panel">
+                <div class="panel-title">MEMORY</div>
+                <div class="gauge-wrap">
+                    <svg class="gauge-svg" width="120" height="120" viewBox="0 0 120 120">
+                        <circle class="gauge-track" cx="60" cy="60" r="50" stroke-width="8" />
+                        <circle id="mem-arc" class="gauge-fill" cx="60" cy="60" r="50" stroke="#00c8ff" stroke-width="8"
+                            stroke-dasharray="314" stroke-dashoffset="314" transform="rotate(-90 60 60)" />
+                        <text class="gauge-text" x="60" y="57" id="mem-pct" fill="#00c8ff">0%</text>
+                        <text class="gauge-sublabel" x="60" y="72">RAM USAGE</text>
+                    </svg>
+                </div>
+                <div class="stat-label">
+                    <span id="mem-used-gb">—</span> GB / <span id="mem-total-gb">—</span> GB
+                </div>
+            </div>
+
+            <!-- DISK -->
+            <div class="panel">
+                <div class="panel-title">DISK VOLUME</div>
+                <div class="gauge-wrap">
+                    <svg class="gauge-svg" width="120" height="120" viewBox="0 0 120 120">
+                        <circle class="gauge-track" cx="60" cy="60" r="50" stroke-width="8" />
+                        <circle id="disk-arc" class="gauge-fill" cx="60" cy="60" r="50" stroke="#ffe000"
+                            stroke-width="8" stroke-dasharray="314" stroke-dashoffset="314"
+                            transform="rotate(-90 60 60)" />
+                        <text class="gauge-text" x="60" y="57" id="disk-pct" fill="#ffe000">0%</text>
+                        <text class="gauge-sublabel" x="60" y="72">DISK USAGE</text>
+                    </svg>
+                </div>
+                <div class="stat-label">
+                    <span id="disk-used-gb">—</span> GB / <span id="disk-total-gb">—</span> GB
+                </div>
+            </div>
+
+            <!-- UPTIME -->
+            <div class="panel">
+                <div class="panel-title">SYSTEM UPTIME</div>
+                <div class="uptime-segments">
+                    <div class="uptime-seg">
+                        <div class="uptime-num" id="up-d">0</div>
+                        <div class="uptime-lbl">DAYS</div>
+                    </div>
+                    <div class="uptime-div">:</div>
+                    <div class="uptime-seg">
+                        <div class="uptime-num" id="up-h">00</div>
+                        <div class="uptime-lbl">HRS</div>
+                    </div>
+                    <div class="uptime-div">:</div>
+                    <div class="uptime-seg">
+                        <div class="uptime-num" id="up-m">00</div>
+                        <div class="uptime-lbl">MIN</div>
+                    </div>
+                    <div class="uptime-div">:</div>
+                    <div class="uptime-seg">
+                        <div class="uptime-num" id="up-s">00</div>
+                        <div class="uptime-lbl">SEC</div>
+                    </div>
+                </div>
+                <div style="margin-top:16px;">
+                    <div class="bar-label-row"><span>OS</span><span id="os-name-bar">—</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ROW 2: charts -->
+        <div class="grid-mid">
+            <!-- CPU History -->
+            <div class="panel">
+                <div class="panel-title">CPU HISTORY — 60s</div>
+                <div class="chart-wrap">
+                    <canvas id="cpu-chart"></canvas>
+                </div>
+            </div>
+
+            <!-- Memory Breakdown -->
+            <div class="panel">
+                <div class="panel-title">MEMORY BREAKDOWN</div>
+                <div class="chart-wrap">
+                    <canvas id="mem-chart"></canvas>
+                </div>
+            </div>
+
+            <!-- Network -->
+            <div class="panel">
+                <div class="panel-title">NETWORK I/O</div>
+                <div class="net-row">
+                    <span class="net-key">IP ADDRESS</span>
+                    <span class="net-val" id="net-ip">—</span>
+                </div>
+                <div class="net-row">
+                    <span class="net-key">INTERFACE</span>
+                    <span class="net-val" id="net-iface">—</span>
+                </div>
+                <div class="net-row">
+                    <span class="net-key">↑ SENT</span>
+                    <span class="net-val" id="net-sent">—</span>
+                </div>
+                <div class="net-row">
+                    <span class="net-key">↓ RECV</span>
+                    <span class="net-val" id="net-recv">—</span>
+                </div>
+                <div class="net-row">
+                    <span class="net-key">PKTS SENT</span>
+                    <span class="net-val" id="net-pkts-sent">—</span>
+                </div>
+                <div class="net-row">
+                    <span class="net-key">PKTS RECV</span>
+                    <span class="net-val" id="net-pkts-recv">—</span>
+                </div>
+                <div class="chart-wrap" style="height:80px;margin-top:12px;">
+                    <canvas id="net-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- ROW 3: Disk bars + Process table -->
+        <div class="grid-bottom">
+            <!-- DISK DETAILS -->
+            <div class="panel">
+                <div class="panel-title">STORAGE DETAILS</div>
+                <div class="bar-wrap">
+                    <div class="bar-label-row"><span>DISK USAGE</span><span id="disk-pct-lbl">—%</span></div>
+                    <div class="bar-track">
+                        <div class="bar-fill" id="disk-bar" style="width:0%"></div>
+                    </div>
+                </div>
+                <div class="bar-wrap" style="margin-top:16px;">
+                    <div class="bar-label-row"><span>FREE SPACE</span><span id="disk-free-gb">—</span></div>
+                    <div class="bar-track">
+                        <div class="bar-fill green" id="disk-free-bar" style="width:0%"></div>
+                    </div>
+                </div>
+                <div class="bar-wrap" style="margin-top:16px;">
+                    <div class="bar-label-row"><span>SWAP USAGE</span><span id="swap-pct-lbl">—%</span></div>
+                    <div class="bar-track">
+                        <div class="bar-fill yellow" id="swap-bar" style="width:0%"></div>
+                    </div>
+                </div>
+                <div style="margin-top:20px;">
+                    <div class="bar-label-row"><span>DISK READ</span><span id="disk-read">—</span></div>
+                    <div class="bar-label-row" style="margin-top:8px;"><span>DISK WRITE</span><span
+                            id="disk-write">—</span></div>
+                </div>
+            </div>
+
+            <!-- PROCESS TABLE -->
+            <div class="panel">
+                <div class="panel-title">ACTIVE PROCESSES — TOP 50 BY CPU</div>
+                <div class="proc-scroll">
+                    <table class="proc-table">
+                        <thead>
+                            <tr>
+                                <th>PID</th>
+                                <th>PROCESS NAME</th>
+                                <th>CPU %</th>
+                                <th>MEM %</th>
+                                <th>STATUS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="proc-tbody">
+                            <tr>
+                                <td colspan="5" style="text-align:center;color:var(--c-dim);padding:20px;">FETCHING
+                                    PROCESS DATA…</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div><!-- /grid-bottom -->
+
+    </div><!-- /#app -->
+
+    <!-- GLITCH LINE -->
+    <div class="glitch-line" id="glitch-line"></div>
+
+    <script>
+        // ═══════════════════════════════════════════════
+        //  MATRIX RAIN
+        // ═══════════════════════════════════════════════
+        (function initMatrix() {
+            const canvas = document.getElementById('matrix-canvas');
+            const ctx = canvas.getContext('2d');
+            let cols, drops;
+
+            function resize() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                cols = Math.floor(canvas.width / 16);
+                drops = Array(cols).fill(1);
+            }
+
+            resize();
+            window.addEventListener('resize', resize);
+
+            const chars = '01アイウエオカキクケコサシスセソタチツテトΨΩΔΞπΣ∇∞★◆▲►'.split('');
+
+            function draw() {
+                ctx.fillStyle = 'rgba(1,10,14,0.05)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.font = '13px Share Tech Mono';
+
+                for (let i = 0; i < drops.length; i++) {
+                    const ch = chars[Math.floor(Math.random() * chars.length)];
+                    const alpha = Math.random() > 0.1 ? 1 : 0.3;
+                    ctx.fillStyle = alpha === 1 ? '#00ffaa' : '#005533';
+                    ctx.fillText(ch, i * 16, drops[i] * 16);
+
+                    if (drops[i] * 16 > canvas.height && Math.random() > 0.975) {
+                        drops[i] = 0;
+                    }
+                    drops[i]++;
+                }
+            }
+
+            setInterval(draw, 48);
+        })();
+
+        // ═══════════════════════════════════════════════
+        //  LOADER SEQUENCE
+        // ═══════════════════════════════════════════════
+        const loaderMsgs = [
+            'LOADING KERNEL MODULES',
+            'MOUNTING FILE SYSTEMS',
+            'CALIBRATING SENSORS',
+            'ESTABLISHING NEURAL LINK',
+            'DECRYPTING DATA FEEDS',
+            'BOOTING HEURISTIC ENGINE',
+            'SYSTEM READY'
+        ];
+
+        let loaderIdx = 0;
+        const loaderEl = document.getElementById('loader-msg');
+
+        const loaderInterval = setInterval(() => {
+            loaderIdx = (loaderIdx + 1) % loaderMsgs.length;
+            loaderEl.textContent = loaderMsgs[loaderIdx];
+        }, 270);
+
+        setTimeout(() => {
+            clearInterval(loaderInterval);
+            loaderEl.textContent = 'SYSTEM READY';
+            setTimeout(() => {
+                document.getElementById('loader').style.opacity = '0';
+                document.getElementById('loader').style.transition = 'opacity 0.6s';
+                setTimeout(() => {
+                    document.getElementById('loader').style.display = 'none';
+                    document.getElementById('app').style.opacity = '1';
+                }, 600);
+            }, 400);
+        }, 2200);
+
+        // ═══════════════════════════════════════════════
+        //  CLOCK
+        // ═══════════════════════════════════════════════
+        function updateClock() {
+            const now = new Date();
+            const pad = n => String(n).padStart(2, '0');
+            document.getElementById('clock').textContent =
+                `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // ═══════════════════════════════════════════════
+        //  UTILITIES
+        // ═══════════════════════════════════════════════
+        const GB = 1073741824;
+        const MB = 1048576;
+
+        function fmtBytes(b) {
+            if (b >= GB) return (b / GB).toFixed(2) + ' GB';
+            if (b >= MB) return (b / MB).toFixed(1) + ' MB';
+            return (b / 1024).toFixed(0) + ' KB';
+        }
+
+        function setGauge(id, pct) {
+            const el = document.getElementById(id);
+            const circumference = 314;
+            const offset = circumference - (pct / 100) * circumference;
+            el.style.strokeDashoffset = offset;
+        }
+
+        function setBarColor(el, pct) {
+            el.classList.remove('green', 'yellow', 'red');
+            if (pct < 60) el.classList.add('green');
+            else if (pct < 85) el.classList.add('yellow');
+            else el.classList.add('red');
+        }
+
+        // ═══════════════════════════════════════════════
+        //  CHARTS SETUP
+        // ═══════════════════════════════════════════════
+        const chartDefaults = {
+            animation: { duration: 500 },
+            plugins: { legend: { display: false }, tooltip: { enabled: false } },
+            scales: {
+                x: { display: false },
+                y: {
+                    display: true,
+                    min: 0, max: 100,
+                    grid: { color: 'rgba(0,255,160,0.06)' },
+                    ticks: { color: '#3a6657', font: { family: 'Share Tech Mono', size: 9 }, maxTicksLimit: 4 }
+                }
+            },
+            elements: { point: { radius: 0 } }
+        };
+
+        // CPU History chart
+        const cpuHistory = Array(60).fill(0);
+        const cpuCtx = document.getElementById('cpu-chart').getContext('2d');
+        const cpuChart = new Chart(cpuCtx, {
+            type: 'line',
+            data: {
+                labels: cpuHistory.map((_, i) => i),
+                datasets: [{
+                    data: cpuHistory,
+                    borderColor: '#00ffaa',
+                    backgroundColor: 'rgba(0,255,170,0.06)',
+                    borderWidth: 1.5,
+                    fill: true,
+                    tension: 0.4,
+                }]
+            },
+            options: { ...chartDefaults, responsive: true, maintainAspectRatio: false }
+        });
+
+        // Memory doughnut
+        const memCtx = document.getElementById('mem-chart').getContext('2d');
+        const memChart = new Chart(memCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Used', 'Available', 'Swap'],
+                datasets: [{
+                    data: [1, 1, 0],
+                    backgroundColor: ['rgba(0,200,255,0.7)', 'rgba(0,255,160,0.15)', 'rgba(255,224,0,0.5)'],
+                    borderColor: ['#00c8ff', '#00ffaa', '#ffe000'],
+                    borderWidth: 1.5,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '68%',
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom',
+                        labels: { color: '#3a6657', font: { family: 'Share Tech Mono', size: 9 }, boxWidth: 10, padding: 8 }
+                    }
+                },
+                animation: { duration: 700 }
+            }
+        });
+
+        // Network sparkline
+        const netSentHistory = Array(30).fill(0);
+        const netRecvHistory = Array(30).fill(0);
+        let lastSent = 0, lastRecv = 0;
+        const netCtx = document.getElementById('net-chart').getContext('2d');
+        const netChart = new Chart(netCtx, {
+            type: 'line',
+            data: {
+                labels: netSentHistory.map((_, i) => i),
+                datasets: [
+                    {
+                        data: netSentHistory, label: 'SENT',
+                        borderColor: '#00ffaa', backgroundColor: 'rgba(0,255,170,0.08)',
+                        borderWidth: 1.2, fill: true, tension: 0.4,
+                    },
+                    {
+                        data: netRecvHistory, label: 'RECV',
+                        borderColor: '#00c8ff', backgroundColor: 'rgba(0,200,255,0.06)',
+                        borderWidth: 1.2, fill: true, tension: 0.4,
+                    }
+                ]
+            },
+            options: {
+                ...chartDefaults,
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { display: false },
+                    y: {
+                        display: false,
+                        grid: { display: false }
+                    }
+                },
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        // ═══════════════════════════════════════════════
+        //  FETCH & UPDATE
+        // ═══════════════════════════════════════════════
+        const BASE = 'http://100.110.135.100:8000';
+
+        async function fetchAll() {
+            try {
+                const [sys, mem, disk, net, procs] = await Promise.all([
+                    fetch(`${BASE}/api/system`).then(r => r.json()),
+                    fetch(`${BASE}/api/memory`).then(r => r.json()),
+                    fetch(`${BASE}/api/disk`).then(r => r.json()),
+                    fetch(`${BASE}/api/network`).then(r => r.json()),
+                    fetch(`${BASE}/api/processes`).then(r => r.json()),
+                ]);
+                updateSystem(sys);
+                updateMemory(mem);
+                updateDisk(disk);
+                updateNetwork(net);
+                updateProcesses(procs);
+                updateTicker(sys, mem, disk, net);
+                checkAlerts(sys.cpu_percent, mem.percent, disk.percent);
+            } catch (e) {
+                console.error('Fetch error:', e);
+            }
+        }
+
+        // ─── SYSTEM ───
+        function updateSystem(d) {
+            // CPU gauge
+            setGauge('cpu-arc', d.cpu_percent);
+            const cpuPctEl = document.getElementById('cpu-pct');
+            cpuPctEl.textContent = d.cpu_percent.toFixed(0) + '%';
+            if (d.cpu_percent > 85) cpuPctEl.classList.add('warn');
+            else cpuPctEl.classList.remove('warn');
+
+            document.getElementById('cpu-cores').textContent = d.cpu_cores;
+            document.getElementById('cpu-freq').textContent = d.cpu_freq_mhz;
+
+            // Push CPU history
+            cpuHistory.push(d.cpu_percent);
+            cpuHistory.shift();
+            cpuChart.data.datasets[0].data = [...cpuHistory];
+            cpuChart.update('none');
+
+            // Uptime
+            const upSecs = Math.floor(Date.now() / 1000 - d.uptime);
+            const upD = Math.floor(upSecs / 86400);
+            const upH = Math.floor((upSecs % 86400) / 3600);
+            const upM = Math.floor((upSecs % 3600) / 60);
+            const upS = upSecs % 60;
+            document.getElementById('up-d').textContent = upD;
+            document.getElementById('up-h').textContent = String(upH).padStart(2, '0');
+            document.getElementById('up-m').textContent = String(upM).padStart(2, '0');
+            document.getElementById('up-s').textContent = String(upS).padStart(2, '0');
+
+            document.getElementById('os-name-bar').textContent = d.os;
+            document.getElementById('os-label').textContent = `${d.os} — ${d.hostname}`;
+            document.getElementById('hostname-display').textContent = `HOST: ${d.hostname}`;
+        }
+
+        // ─── MEMORY ───
+        function updateMemory(d) {
+            setGauge('mem-arc', d.percent);
+            const memEl = document.getElementById('mem-pct');
+            memEl.textContent = d.percent.toFixed(0) + '%';
+            if (d.percent > 85) memEl.classList.add('warn');
+            else memEl.classList.remove('warn');
+
+            document.getElementById('mem-used-gb').textContent = (d.used / GB).toFixed(2);
+            document.getElementById('mem-total-gb').textContent = (d.total / GB).toFixed(2);
+
+            // Doughnut
+            memChart.data.datasets[0].data = [d.used, d.available, d.swap_used];
+            memChart.update();
+
+            // Swap bar
+            const swapEl = document.getElementById('swap-bar');
+            swapEl.style.width = d.swap_percent + '%';
+            setBarColor(swapEl, d.swap_percent);
+            document.getElementById('swap-pct-lbl').textContent = d.swap_percent.toFixed(1) + '%';
+        }
+
+        // ─── DISK ───
+        function updateDisk(d) {
+            setGauge('disk-arc', d.percent);
+            const diskPctEl = document.getElementById('disk-pct');
+            diskPctEl.textContent = d.percent.toFixed(0) + '%';
+            if (d.percent > 85) diskPctEl.classList.add('warn');
+            else diskPctEl.classList.remove('warn');
+
+            document.getElementById('disk-used-gb').textContent = (d.used / GB).toFixed(1);
+            document.getElementById('disk-total-gb').textContent = (d.total / GB).toFixed(1);
+            document.getElementById('disk-free-gb').textContent = fmtBytes(d.free);
+            document.getElementById('disk-read').textContent = fmtBytes(d.read_bytes);
+            document.getElementById('disk-write').textContent = fmtBytes(d.write_bytes);
+
+            const diskBar = document.getElementById('disk-bar');
+            diskBar.style.width = d.percent + '%';
+            setBarColor(diskBar, d.percent);
+            document.getElementById('disk-pct-lbl').textContent = d.percent.toFixed(1) + '%';
+
+            const freeBar = document.getElementById('disk-free-bar');
+            freeBar.style.width = (100 - d.percent) + '%';
+        }
+
+        // ─── NETWORK ───
+        function updateNetwork(d) {
+            document.getElementById('net-ip').textContent = d.ip_address || '—';
+            document.getElementById('net-iface').textContent = d.active_interface || '—';
+            document.getElementById('net-sent').textContent = fmtBytes(d.bytes_sent);
+            document.getElementById('net-recv').textContent = fmtBytes(d.bytes_recv);
+            document.getElementById('net-pkts-sent').textContent = d.packets_sent.toLocaleString();
+            document.getElementById('net-pkts-recv').textContent = d.packets_recv.toLocaleString();
+
+            // Deltas for sparkline
+            const deltaSent = lastSent ? Math.max(0, d.bytes_sent - lastSent) / 1024 : 0;
+            const deltaRecv = lastRecv ? Math.max(0, d.bytes_recv - lastRecv) / 1024 : 0;
+            lastSent = d.bytes_sent;
+            lastRecv = d.bytes_recv;
+
+            netSentHistory.push(deltaSent);
+            netSentHistory.shift();
+            netRecvHistory.push(deltaRecv);
+            netRecvHistory.shift();
+
+            netChart.data.datasets[0].data = [...netSentHistory];
+            netChart.data.datasets[1].data = [...netRecvHistory];
+            netChart.update('none');
+        }
+
+        // ─── PROCESSES ───
+        function updateProcesses(procs) {
+            const tbody = document.getElementById('proc-tbody');
+            tbody.innerHTML = '';
+            procs.forEach(p => {
+                const cpu = (p.cpu_percent || 0).toFixed(1);
+                const mem = (p.memory_percent || 0).toFixed(1);
+                const status = p.status || 'running';
+                const pillClass = status === 'running' ? 'running' : status === 'sleeping' ? 'sleeping' : 'other';
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+      <td class="pid-cell">${p.pid}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.name}</td>
+      <td>
+        ${cpu}%
+        <div class="cpu-bar-mini">
+          <div class="cpu-bar-mini-fill" style="width:${Math.min(cpu * 2, 100)}%"></div>
+        </div>
+      </td>
+      <td>${mem}%</td>
+      <td><span class="status-pill ${pillClass}">${status}</span></td>
+    `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // ─── TICKER ───
+        function updateTicker(sys, mem, disk, net) {
+            const t = document.getElementById('ticker-inner');
+            const content = `
+    <span>CPU:</span> ${sys.cpu_percent.toFixed(1)}% &nbsp;&nbsp;
+    <span>MEM:</span> ${mem.percent.toFixed(1)}% &nbsp;&nbsp;
+    <span>DISK:</span> ${disk.percent.toFixed(1)}% &nbsp;&nbsp;
+    <span>NET↑:</span> ${fmtBytes(net.bytes_sent)} &nbsp;&nbsp;
+    <span>NET↓:</span> ${fmtBytes(net.bytes_recv)} &nbsp;&nbsp;
+    <span>CPU CORES:</span> ${sys.cpu_cores} &nbsp;&nbsp;
+    <span>FREQ:</span> ${sys.cpu_freq_mhz} MHz &nbsp;&nbsp;
+    <span>HOST:</span> ${sys.hostname} &nbsp;&nbsp;
+    <span>OS:</span> ${sys.os} &nbsp;&nbsp;
+    <span>IP:</span> ${net.ip_address} &nbsp;&nbsp;
+    <span>CPU:</span> ${sys.cpu_percent.toFixed(1)}% &nbsp;&nbsp;
+    <span>MEM:</span> ${mem.percent.toFixed(1)}% &nbsp;&nbsp;
+    <span>DISK:</span> ${disk.percent.toFixed(1)}% &nbsp;&nbsp;
+    <span>NET↑:</span> ${fmtBytes(net.bytes_sent)} &nbsp;&nbsp;
+    <span>NET↓:</span> ${fmtBytes(net.bytes_recv)} &nbsp;&nbsp;
+    <span>CPU CORES:</span> ${sys.cpu_cores} &nbsp;&nbsp;
+    <span>FREQ:</span> ${sys.cpu_freq_mhz} MHz &nbsp;&nbsp;
+    <span>HOST:</span> ${sys.hostname} &nbsp;&nbsp;
+    <span>OS:</span> ${sys.os} &nbsp;&nbsp;
+    <span>IP:</span> ${net.ip_address}
+  `;
+            t.innerHTML = content;
+        }
+
+        // ─── ALERTS ───
+        function checkAlerts(cpu, mem, disk) {
+            const banner = document.getElementById('alert-banner');
+            if (cpu > 90 || mem > 90 || disk > 90) banner.classList.add('show');
+            else banner.classList.remove('show');
+        }
+
+        // ─── GLITCH EFFECT ───
+        (function glitchEffect() {
+            const line = document.getElementById('glitch-line');
+            function triggerGlitch() {
+                const top = Math.random() * window.innerHeight;
+                line.style.top = top + 'px';
+                line.style.opacity = '1';
+                setTimeout(() => { line.style.opacity = '0'; }, 80);
+                setTimeout(triggerGlitch, 3000 + Math.random() * 5000);
+            }
+            setTimeout(triggerGlitch, 4000);
+        })();
+
+        // ═══════════════════════════════════════════════
+        //  INIT + AUTO-REFRESH
+        // ═══════════════════════════════════════════════
+        setTimeout(() => {
+            fetchAll();
+            setInterval(fetchAll, 3000);
+        }, 2300);
+    </script>
+</body>
+
+</html>
