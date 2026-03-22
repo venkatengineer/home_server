@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Allow cleartext HTTP to the server IP on port 8000 -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">100.110.135.100</domain>
+    </domain-config>
+    <!-- Allow all cleartext as fallback (matches usesCleartextTraffic) -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system"/>
+        </trust-anchors>
+    </base-config>
+</network-security-config>

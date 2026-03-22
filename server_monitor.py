@@ -29,7 +29,7 @@ app.add_middleware(OpenCORSMiddleware)
 # Serve static files (dashboard)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-@app.get("/")
+@app.get("/server_dashboard")
 def read_root():
     return FileResponse("static/index.html")
 
@@ -104,3 +104,7 @@ def process_info():
             pass
     processes.sort(key=lambda x: x['cpu_percent'], reverse=True)
     return processes[:50]
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

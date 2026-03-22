@@ -1017,6 +1017,8 @@
                 </div>
                 <div style="margin-top:16px;">
                     <div class="bar-label-row"><span>OS</span><span id="os-name-bar">—</span></div>
+                    <div class="bar-label-row" style="margin-top:8px;"><span>MAX TEMP</span><span id="sys-max-temp"
+                            style="font-family: 'Orbitron', sans-serif;">—</span></div>
                 </div>
             </div>
         </div>
@@ -1356,27 +1358,38 @@
 
         async function fetchAll() {
             try {
-                const [sys, mem, disk, net, procs] = await Promise.all([
+                const [sys, mem, disk, net, procs, temp] = await Promise.all([
                     fetch(`${BASE}/api/system`).then(r => r.json()),
                     fetch(`${BASE}/api/memory`).then(r => r.json()),
                     fetch(`${BASE}/api/disk`).then(r => r.json()),
                     fetch(`${BASE}/api/network`).then(r => r.json()),
                     fetch(`${BASE}/api/processes`).then(r => r.json()),
+                    fetch(`${BASE}/temperature`).then(r => r.json()),
                 ]);
-                updateSystem(sys);
+
+                let maxTemp = 0;
+                for (const key in temp) {
+                    if (Array.isArray(temp[key])) {
+                        temp[key].forEach(s => {
+                            if (s.current > maxTemp) maxTemp = s.current;
+                        });
+                    }
+                }
+
+                updateSystem(sys, maxTemp);
                 updateMemory(mem);
                 updateDisk(disk);
                 updateNetwork(net);
                 updateProcesses(procs);
-                updateTicker(sys, mem, disk, net);
-                checkAlerts(sys.cpu_percent, mem.percent, disk.percent);
+                updateTicker(sys, mem, disk, net, maxTemp);
+                checkAlerts(sys.cpu_percent, mem.percent, disk.percent, maxTemp);
             } catch (e) {
                 console.error('Fetch error:', e);
             }
         }
 
         // ─── SYSTEM ───
-        function updateSystem(d) {
+        function updateSystem(d, t) {
             // CPU gauge
             setGauge('cpu-arc', d.cpu_percent);
             const cpuPctEl = document.getElementById('cpu-pct');
@@ -1407,6 +1420,21 @@
             document.getElementById('os-name-bar').textContent = d.os;
             document.getElementById('os-label').textContent = `${d.os} — ${d.hostname}`;
             document.getElementById('hostname-display').textContent = `HOST: ${d.hostname}`;
+
+            const tempEl = document.getElementById('sys-max-temp');
+            if (tempEl) {
+                tempEl.textContent = t.toFixed(1) + ' °C';
+                if (t > 80) {
+                    tempEl.style.color = 'var(--c-red)';
+                    tempEl.style.textShadow = '0 0 8px var(--c-red)';
+                } else if (t > 65) {
+                    tempEl.style.color = 'var(--c-yellow)';
+                    tempEl.style.textShadow = '0 0 8px var(--c-yellow)';
+                } else {
+                    tempEl.style.color = 'var(--c-glow)';
+                    tempEl.style.textShadow = '0 0 8px var(--c-glow)';
+                }
+            }
         }
 
         // ─── MEMORY ───
@@ -1506,10 +1534,11 @@
         }
 
         // ─── TICKER ───
-        function updateTicker(sys, mem, disk, net) {
+        function updateTicker(sys, mem, disk, net, tempMax) {
             const t = document.getElementById('ticker-inner');
             const content = `
     <span>CPU:</span> ${sys.cpu_percent.toFixed(1)}% &nbsp;&nbsp;
+    <span>TEMP:</span> ${tempMax.toFixed(1)}°C &nbsp;&nbsp;
     <span>MEM:</span> ${mem.percent.toFixed(1)}% &nbsp;&nbsp;
     <span>DISK:</span> ${disk.percent.toFixed(1)}% &nbsp;&nbsp;
     <span>NET↑:</span> ${fmtBytes(net.bytes_sent)} &nbsp;&nbsp;
@@ -1520,6 +1549,7 @@
     <span>OS:</span> ${sys.os} &nbsp;&nbsp;
     <span>IP:</span> ${net.ip_address} &nbsp;&nbsp;
     <span>CPU:</span> ${sys.cpu_percent.toFixed(1)}% &nbsp;&nbsp;
+    <span>TEMP:</span> ${tempMax.toFixed(1)}°C &nbsp;&nbsp;
     <span>MEM:</span> ${mem.percent.toFixed(1)}% &nbsp;&nbsp;
     <span>DISK:</span> ${disk.percent.toFixed(1)}% &nbsp;&nbsp;
     <span>NET↑:</span> ${fmtBytes(net.bytes_sent)} &nbsp;&nbsp;
@@ -1534,9 +1564,9 @@
         }
 
         // ─── ALERTS ───
-        function checkAlerts(cpu, mem, disk) {
+        function checkAlerts(cpu, mem, disk, tempMax) {
             const banner = document.getElementById('alert-banner');
-            if (cpu > 90 || mem > 90 || disk > 90) banner.classList.add('show');
+            if (cpu > 90 || mem > 90 || disk > 90 || tempMax > 85) banner.classList.add('show');
             else banner.classList.remove('show');
         }
 
